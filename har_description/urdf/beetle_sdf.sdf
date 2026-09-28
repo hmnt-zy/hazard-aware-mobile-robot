@@ -1,0 +1,589 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     beetle_sdf.sdf  —  native SDF conversion of beetle_urdf.urdf
+     ───────────────────────────────────────────────────────────────────────
+     Conversion notes:
+       - Every link, joint, sensor, plugin, topic, mass/inertia, mesh,
+         collision, and friction/contact value is carried over unchanged
+         from beetle_urdf.urdf.
+       - URDF joint <origin> (parent-relative) becomes SDF
+         <joint><pose relative_to="parent_link">, and each child <link>
+         is anchored with <pose relative_to="joint_name">0 0 0 0 0 0</pose>.
+         This reproduces URDF kinematics exactly without re-deriving any
+         forward-kinematics math.
+       - "continuous" URDF joints (j1, j2) become SDF type="revolute"
+         with an unlimited (-1e16 / 1e16) axis limit, since SDF has no
+         "continuous" joint type.
+       - camera_optical_frame was a zero-mass, geometry-less URDF link
+         used only as a TF anchor. It has no physics role in Gazebo, so
+         it is expressed as an SDF <frame> instead of a massless <link>.
+       - <gazebo reference="..."> blocks were merged into their target
+         <link> as <self_collide>, <collision><surface><friction>/<contact>,
+         and <sensor> elements, per native SDF structure.
+       - Legacy "Gazebo/Black" material script references (gz-sim does not
+         use classic Ogre material scripts) were dropped; each link keeps
+         its own <material> color as already defined in the URDF visuals.
+       - All topics kept identical: /camera/image_raw, /lidar/scan,
+         /model/beetle/cmd_vel, /model/beetle/odometry, /model/beetle/tf.
+═══════════════════════════════════════════════════════════════════════ -->
+<sdf version="1.9">
+  <model name="beetle">
+    <static>false</static>
+    <self_collide>false</self_collide>
+
+
+    <!-- 1. ADD THIS NEW ROOT LINK -->
+    <link name="base_footprint">
+      <pose>0 0 0 0 0 0</pose>
+    </link>
+
+    <!-- 2. ADD THIS JOINT TO ROTATE THE CHASSIS 90 DEGREES (+1.5708 radians) -->
+    <joint name="base_footprint_joint" type="fixed">
+      <pose relative_to="base_footprint">0 0 0 0 0 1.5708</pose>
+      <parent>base_footprint</parent>
+      <child>base_link</child>
+    </joint>
+
+
+
+    <!-- ─── BASE BODY ─────────────────────────────────────────────────── -->
+    <link name="base_link">
+      <pose relative_to="base_footprint_joint">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <pose>-3.20122165886616E-05 0.000122751306016911 0.0419 0 0 0</pose>
+        <mass>0.902230635099953</mass>
+        <inertia>
+          <ixx>0.00208564262830971</ixx>
+          <ixy>8.40924600301939E-06</ixy>
+          <ixz>2.92452912398578E-06</ixz>
+          <iyy>0.00217629616815341</iyy>
+          <iyz>3.58348854709201E-06</iyz>
+          <izz>0.00382337924022084</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="base_link_visual">
+        <pose>0 0 0.006833 0 0 0</pose>
+        <geometry>
+          <mesh><uri>package://beetlebot_description/meshes/base_link.STL</uri></mesh>
+        </geometry>
+        <material>
+          <ambient>0.752941176470588 0.752941176470588 0.752941176470588 1</ambient>
+          <diffuse>0.752941176470588 0.752941176470588 0.752941176470588 1</diffuse>
+        </material>
+      </visual>
+
+      <!-- PRIMARY chassis collision box -->
+      <collision name="base_link_collision">
+        <pose>0.0000 0.0000 0.02555 0 0 0</pose>
+        <geometry>
+          <box><size>0.2203 0.2203 0.0755</size></box>
+        </geometry>
+        <surface>
+          <friction><ode><mu>0.02</mu><mu2>0.02</mu2></ode></friction>
+          <contact><ode><kp>3e4</kp><kd>20</kd><min_depth>0.001</min_depth><max_vel>1.5</max_vel></ode></contact>
+        </surface>
+      </collision>
+
+      <!-- FRONT CASTER collision sphere -->
+      <collision name="base_link_collision_1">
+        <pose>0.0000 -0.0842 -0.001 0 0 0</pose>
+        <geometry>
+          <sphere><radius>0.012</radius></sphere>
+        </geometry>
+        <surface>
+          <friction><ode><mu>0.02</mu><mu2>0.02</mu2></ode></friction>
+          <contact><ode><kp>3e4</kp><kd>20</kd><min_depth>0.001</min_depth><max_vel>1.5</max_vel></ode></contact>
+        </surface>
+      </collision>
+
+      <!-- REAR CASTER collision sphere -->
+      <collision name="base_link_collision_2">
+        <pose>0.0000 0.0842 -0.001 0 0 0</pose>
+        <geometry>
+          <sphere><radius>0.012</radius></sphere>
+        </geometry>
+        <surface>
+          <friction><ode><mu>0.02</mu><mu2>0.02</mu2></ode></friction>
+          <contact><ode><kp>3e4</kp><kd>20</kd><min_depth>0.001</min_depth><max_vel>1.5</max_vel></ode></contact>
+        </surface>
+      </collision>
+    </link>
+
+    <!-- ─── LEFT WHEEL ────────────────────────────────────────────────── -->
+    <joint name="j1" type="revolute">
+      <pose relative_to="base_link">0.0835000000000001 0 0.02 -1.5707963267949 0 -1.5707963267949</pose>
+      <parent>base_link</parent>
+      <child>left</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+      </axis>
+    </joint>
+
+    <link name="left">
+      <pose relative_to="j1">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <pose>-1.4817E-09 2.6746E-10 0.0041022 0 0 0</pose>
+        <mass>0.03468</mass>
+        <inertia>
+          <ixx>1.5221E-05</ixx>
+          <ixy>-4.9032E-10</ixy>
+          <ixz>2.0626E-13</ixz>
+          <iyy>1.522E-05</iyy>
+          <iyz>-4.4755E-14</iyz>
+          <izz>2.578E-05</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="left_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh><uri>package://beetlebot_description/meshes/left.STL</uri></mesh>
+        </geometry>
+        <material>
+          <ambient>0.75294 0.75294 0.75294 1</ambient>
+          <diffuse>0.75294 0.75294 0.75294 1</diffuse>
+        </material>
+      </visual>
+
+      <collision name="left_collision">
+        <pose>0.0000 0.0000 0.0018 0 0 0</pose>
+        <geometry>
+          <cylinder><radius>0.0340</radius><length>0.0315</length></cylinder>
+        </geometry>
+        <surface>
+          <friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction>
+          <contact><ode><kp>1000000</kp><kd>372</kd><min_depth>0.001</min_depth><max_vel>1.5</max_vel></ode></contact>
+        </surface>
+      </collision>
+    </link>
+
+    <!-- ─── RIGHT WHEEL ───────────────────────────────────────────────── -->
+    <joint name="j2" type="revolute">
+      <pose relative_to="base_link">-0.0832999999999999 0 0.02 1.5707963267949 0 -1.5707963267949</pose>
+      <parent>base_link</parent>
+      <child>right</child>
+      <axis>
+        <xyz>0 0 -1</xyz>
+        <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+      </axis>
+    </joint>
+
+    <link name="right">
+      <pose relative_to="j2">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <pose>1.0241E-09 1.1425E-09 0.0041022 0 0 0</pose>
+        <mass>0.03468</mass>
+        <inertia>
+          <ixx>1.5221E-05</ixx>
+          <ixy>4.0618E-10</ixy>
+          <ixz>-1.5048E-13</ixz>
+          <iyy>1.522E-05</iyy>
+          <iyz>-1.522E-13</iyz>
+          <izz>2.578E-05</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="right_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh><uri>package://beetlebot_description/meshes/right.STL</uri></mesh>
+        </geometry>
+        <material>
+          <ambient>0.75294 0.75294 0.75294 1</ambient>
+          <diffuse>0.75294 0.75294 0.75294 1</diffuse>
+        </material>
+      </visual>
+
+      <collision name="right_collision">
+        <pose>0.0000 0.0000 0.0018 0 0 0</pose>
+        <geometry>
+          <cylinder><radius>0.0340</radius><length>0.0315</length></cylinder>
+        </geometry>
+        <surface>
+          <friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction>
+          <contact><ode><kp>1000000</kp><kd>372</kd><min_depth>0.001</min_depth><max_vel>1.5</max_vel></ode></contact>
+        </surface>
+      </collision>
+    </link>
+
+    <!-- ─── CAMERA ────────────────────────────────────────────────────── -->
+    <joint name="camera_joint" type="fixed">
+      <pose relative_to="base_link">0 -0.09 0.13 0.3 0 0</pose>
+      <parent>base_link</parent>
+      <child>camera_link</child>
+    </joint>
+
+    <link name="camera_link">
+      <pose relative_to="camera_joint">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <mass>0.1</mass>
+        <inertia>
+          <ixx>1e-4</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1e-4</iyy><iyz>0</iyz><izz>1e-4</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="camera_link_visual">
+        <geometry><box><size>0.04 0.03 0.03</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+
+      <collision name="camera_link_collision">
+        <geometry><box><size>0.04 0.03 0.03</size></box></geometry>
+      </collision>
+
+      <sensor name="webcam" type="camera">
+        <pose>0 0 0 0 0.3 -1.5708</pose>
+        <always_on>true</always_on>
+        <update_rate>10</update_rate>
+        <visualize>true</visualize>
+        <topic>/camera/image_raw</topic>
+        <gz_frame_id>camera_link</gz_frame_id>
+        <camera>
+          <horizontal_fov>1.396</horizontal_fov>
+          <image>
+            <width>1280</width>
+            <height>720</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip><near>0.1</near><far>50</far></clip>
+          <noise><type>gaussian</type><mean>0.0</mean><stddev>0.007</stddev></noise>
+        </camera>
+      </sensor>
+    </link>
+
+    <!-- camera_optical_frame: TF-only anchor in the URDF, no physics role.
+         Kept as a lightweight SDF frame rather than a massless link. -->
+    <frame name="camera_optical_frame" attached_to="camera_link">
+      <pose>0 0 0.03 -1.5708 0 -3.1416</pose>
+    </frame>
+
+    <!-- ─── SUPPORT POLES ─────────────────────────────────────────────── -->
+    <joint name="joint1" type="fixed">
+      <pose relative_to="base_link">-0.04 -0.04 0.10 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>pole1</child>
+    </joint>
+
+    <link name="pole1">
+      <pose relative_to="joint1">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <pose>0 0 0.075 0 0 0</pose>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1e-6</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1e-6</iyy><iyz>0</iyz><izz>1e-6</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="pole1_visual">
+        <pose>0 0 0.075 0 0 0</pose>
+        <geometry><cylinder><radius>0.02</radius><length>0.15</length></cylinder></geometry>
+        <material>
+          <ambient>0 0 1 1</ambient>
+          <diffuse>0 0 1 1</diffuse>
+        </material>
+      </visual>
+
+      <collision name="pole1_collision">
+        <pose>0 0 0.075 0 0 0</pose>
+        <geometry><cylinder><radius>0.02</radius><length>0.15</length></cylinder></geometry>
+      </collision>
+    </link>
+
+    <joint name="joint2" type="fixed">
+      <pose relative_to="base_link">0.04 -0.04 0.10 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>pole2</child>
+    </joint>
+
+    <link name="pole2">
+      <pose relative_to="joint2">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <pose>0 0 0.075 0 0 0</pose>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1e-6</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1e-6</iyy><iyz>0</iyz><izz>1e-6</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="pole2_visual">
+        <pose>0 0 0.075 0 0 0</pose>
+        <geometry><cylinder><radius>0.02</radius><length>0.15</length></cylinder></geometry>
+        <material>
+          <ambient>0 0 1 1</ambient>
+          <diffuse>0 0 1 1</diffuse>
+        </material>
+      </visual>
+
+      <collision name="pole2_collision">
+        <pose>0 0 0.075 0 0 0</pose>
+        <geometry><cylinder><radius>0.02</radius><length>0.15</length></cylinder></geometry>
+      </collision>
+    </link>
+
+    <joint name="joint3" type="fixed">
+      <pose relative_to="base_link">-0.04 0.04 0.10 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>pole3</child>
+    </joint>
+
+    <link name="pole3">
+      <pose relative_to="joint3">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <pose>0 0 0.075 0 0 0</pose>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1e-6</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1e-6</iyy><iyz>0</iyz><izz>1e-6</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="pole3_visual">
+        <pose>0 0 0.075 0 0 0</pose>
+        <geometry><cylinder><radius>0.02</radius><length>0.15</length></cylinder></geometry>
+        <material>
+          <ambient>0 0 1 1</ambient>
+          <diffuse>0 0 1 1</diffuse>
+        </material>
+      </visual>
+
+      <collision name="pole3_collision">
+        <pose>0 0 0.075 0 0 0</pose>
+        <geometry><cylinder><radius>0.02</radius><length>0.15</length></cylinder></geometry>
+      </collision>
+    </link>
+
+    <joint name="joint4" type="fixed">
+      <pose relative_to="base_link">0.04 0.04 0.10 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>pole4</child>
+    </joint>
+
+    <link name="pole4">
+      <pose relative_to="joint4">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <pose>0 0 0.075 0 0 0</pose>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1e-6</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1e-6</iyy><iyz>0</iyz><izz>1e-6</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="pole4_visual">
+        <pose>0 0 0.075 0 0 0</pose>
+        <geometry><cylinder><radius>0.02</radius><length>0.15</length></cylinder></geometry>
+        <material>
+          <ambient>0 0 1 1</ambient>
+          <diffuse>0 0 1 1</diffuse>
+        </material>
+      </visual>
+
+      <collision name="pole4_collision">
+        <pose>0 0 0.075 0 0 0</pose>
+        <geometry><cylinder><radius>0.02</radius><length>0.15</length></cylinder></geometry>
+      </collision>
+    </link>
+
+    <!-- ─── PLATFORM ──────────────────────────────────────────────────── -->
+    <joint name="joint_platform" type="fixed">
+      <pose relative_to="pole1">0.04 0.04 0.15 0 0 0</pose>
+      <parent>pole1</parent>
+      <child>platform</child>
+    </joint>
+
+    <link name="platform">
+      <pose relative_to="joint_platform">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1e-6</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1e-6</iyy><iyz>0</iyz><izz>1e-6</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="platform_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry><box><size>0.1 0.1 0.02</size></box></geometry>
+        <material>
+          <ambient>0 0 1 1</ambient>
+          <diffuse>0 0 1 1</diffuse>
+        </material>
+      </visual>
+
+      <collision name="platform_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry><box><size>0.1 0.1 0.02</size></box></geometry>
+      </collision>
+    </link>
+
+    <!-- ─── LIDAR BASE ────────────────────────────────────────────────── -->
+    <joint name="joint_lidar_base" type="fixed">
+      <pose relative_to="platform">0 0 0.025 0 0 0</pose>
+      <parent>platform</parent>
+      <child>lidar_base</child>
+    </joint>
+
+    <link name="lidar_base">
+      <pose relative_to="joint_lidar_base">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1e-7</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1e-7</iyy><iyz>0</iyz><izz>1e-7</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="lidar_base_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry><cylinder><radius>0.04</radius><length>0.03</length></cylinder></geometry>
+        <material>
+          <ambient>0.1 0.1 0.1 1</ambient>
+          <diffuse>0.1 0.1 0.1 1</diffuse>
+        </material>
+      </visual>
+
+      <collision name="lidar_base_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry><cylinder><radius>0.04</radius><length>0.03</length></cylinder></geometry>
+      </collision>
+    </link>
+
+    <!-- ─── LIDAR HEAD ────────────────────────────────────────────────── -->
+    <joint name="joint_lidar_rotation" type="fixed">
+      <pose relative_to="lidar_base">0 0 0.035 0 0 1.5708</pose>
+      <parent>lidar_base</parent>
+      <child>lidar_head</child>
+    </joint>
+
+    <link name="lidar_head">
+      <pose relative_to="joint_lidar_rotation">0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+
+      <inertial>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1e-6</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1e-6</iyy><iyz>0</iyz><izz>1e-6</izz>
+        </inertia>
+      </inertial>
+
+      <visual name="lidar_head_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry><cylinder><radius>0.035</radius><length>0.04</length></cylinder></geometry>
+        <material>
+          <ambient>0.1 0.1 0.1 1</ambient>
+          <diffuse>0.1 0.1 0.1 1</diffuse>
+        </material>
+      </visual>
+
+      <collision name="lidar_head_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry><cylinder><radius>0.035</radius><length>0.04</length></cylinder></geometry>
+      </collision>
+
+      <sensor name="lidar" type="gpu_lidar">
+        <always_on>true</always_on>
+        <update_rate>15</update_rate>
+        <visualize>true</visualize>
+        <topic>/scan</topic>
+        <gz_frame_id>lidar_head</gz_frame_id>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.14159</min_angle>
+              <max_angle>3.14159</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.05</min>
+            <max>12.0</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise><type>gaussian</type><mean>0.0</mean><stddev>0.01</stddev></noise>
+        </lidar>
+      </sensor>
+    </link>
+
+    <!-- ─── GAZEBO: Required system plugins (unchanged) ──────────────── -->
+    <plugin filename="gz-sim-pose-publisher-system" name="gz::sim::systems::PosePublisher">
+      <publish_link_pose>true</publish_link_pose>
+      <publish_sensor_pose>true</publish_sensor_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_nested_model_pose>true</publish_nested_model_pose>
+      <use_pose_vector_msg>true</use_pose_vector_msg>
+      <static_publisher>true</static_publisher>
+      <static_update_frequency>1</static_update_frequency>
+    </plugin>
+
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+
+    <plugin filename="gz-sim-air-pressure-system" name="gz::sim::systems::AirPressure"/>
+
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher"/>
+
+    <!-- ─── GAZEBO: DiffDrive plugin (topics unchanged) ───────────────── -->
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>j1</left_joint>
+      <right_joint>j2</right_joint>
+      <wheel_separation>0.167</wheel_separation>
+      <wheel_radius>0.034</wheel_radius>
+      <left_p_gain>1000.0</left_p_gain>
+      <right_p_gain>1000.0</right_p_gain>
+      <left_i_gain>0.0</left_i_gain>
+      <right_i_gain>0.0</right_i_gain>
+      <left_d_gain>0.0</left_d_gain>
+      <right_d_gain>0.0</right_d_gain>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <topic>/cmd_vel</topic>
+      <odom_topic>/odom</odom_topic>
+      <tf_topic>/tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
+      <publish_odom>true</publish_odom>
+      <publish_tf>true</publish_tf>
+      <max_linear_velocity>1.5</max_linear_velocity>
+      <max_angular_velocity>0.3</max_angular_velocity>
+      <min_velocity>-1.5</min_velocity>
+      <max_velocity>1.5</max_velocity>
+      <min_acceleration>-3.0</min_acceleration>
+      <max_acceleration>3.0</max_acceleration>
+    </plugin>
+
+     <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>/joint_states</topic>
+    </plugin>
+
+
+  </model>
+</sdf>

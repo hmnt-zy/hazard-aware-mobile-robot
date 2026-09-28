@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="beetle_urdf">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-3.20122165886616E-05 0.000122751306016911 0.0519650074449112"
+        rpy="0 0 0" />
+      <mass
+        value="0.902230635099953" />
+      <inertia
+        ixx="0.00208564262830971"
+        ixy="8.40924600301939E-06"
+        ixz="2.92452912398578E-06"
+        iyy="0.00217629616815341"
+        iyz="3.58348854709201E-06"
+        izz="0.00382337924022084" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://beetlebot_description/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+
+     <!-- Main chassis collision -->
+  <collision name="chassis_collision">
+    <origin xyz="0 0 0.02555" rpy="0 0 0"/>
+    <geometry>
+      <box size="0.2203 0.2203 0.0755"/>
+    </geometry>
+  </collision>
+
+  <!-- Front caster -->
+  <collision name="front_caster_collision">
+    <origin xyz="0 -0.0842 -0.00625" rpy="0 0 0"/>
+    <geometry>
+      <sphere radius="0.012"/>
+    </geometry>
+  </collision>
+
+  <!-- Rear caster -->
+  <collision name="rear_caster_collision">
+    <origin xyz="0 0.0842 -0.00625" rpy="0 0 0"/>
+    <geometry>
+      <sphere radius="0.012"/>
+    </geometry>
+  </collision>
+
+
+  </link>
+  <link
+    name="left">
+    <inertial>
+      <origin
+        xyz="-1.4817E-09 2.6746E-10 0.0041022"
+        rpy="0 0 0" />
+      <mass
+        value="0.03468" />
+      <inertia
+        ixx="1.5221E-05"
+        ixy="-4.9032E-10"
+        ixz="2.0626E-13"
+        iyy="1.522E-05"
+        iyz="-4.4755E-14"
+        izz="2.578E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://beetlebot_description/meshes/left.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <!-- radius must match your 32.5mm wheel. Adjust length to match wheel thickness -->
+        <cylinder radius="0.0325" length="0.02" /> 
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="j1"
+    type="continuous">
+    <origin
+      xyz="0.0835000000000001 0 0.01425"
+      rpy="-1.5707963267949 0 -1.5707963267949" />
+    <parent
+      link="base_link" />
+    <child
+      link="left" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="right">
+    <inertial>
+      <origin
+        xyz="1.0241E-09 1.1425E-09 0.0041022"
+        rpy="0 0 0" />
+      <mass
+        value="0.03468" />
+      <inertia
+        ixx="1.5221E-05"
+        ixy="4.0618E-10"
+        ixz="-1.5048E-13"
+        iyy="1.522E-05"
+        iyz="-1.522E-13"
+        izz="2.578E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://beetlebot_description/meshes/right.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.0325" length="0.02" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="j2"
+    type="continuous">
+    <origin
+      xyz="-0.0832999999999999 0 0.0142500000000002"
+      rpy="1.5707963267949 0 -1.5707963267949" />
+    <parent
+      link="base_link" />
+    <child
+      link="right" />
+    <axis
+      xyz="0 0 -1" />
+  </joint>
+
+  <!-- Make the chassis slippery so it doesn't anchor the robot -->
+  <!-- <gazebo reference="base_link">
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+  </gazebo> -->
+
+
+  <!-- ============================================== -->
+  <!-- Base Footprint (Ground Projection)             -->
+  <!-- ============================================== -->
+  <!-- <link name="base_footprint"/>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/> -->
+    <!-- Z-offset = Wheel Radius (0.0325) - Wheel Joint Z (0.01425) = 0.01825 -->
+    <!-- <origin xyz="0 0 0.01825" rpy="0 0 0"/>
+  </joint>
+ -->
+
+
+  <!-- ============================================== -->
+  <!-- Modern Gazebo (ros_gz) Plugins                 -->
+  <!-- ============================================== -->
+  <gazebo>
+    
+    <!-- Differential Drive Plugin -->
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>j1</left_joint>
+      <right_joint>j2</right_joint>
+      <!-- Wheel separation based on URDF j1 x(0.0835) - j2 x(-0.0833) -->
+      <!-- <wheel_separation>0.1668</wheel_separation> -->
+      <!-- <wheel_radius>0.0325</wheel_radius> -->
+
+      <wheel_separation>0.1668</wheel_separation> <!-- 238 mm -->
+      <wheel_radius>0.0325</wheel_radius>       <!-- 65 mm / 2 = 32.5 mm -->
+
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <topic>/cmd_vel</topic>
+      <odom_topic>/odom</odom_topic>
+      <tf_topic>/tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_link</child_frame_id>
+    </plugin>
+
+    <!-- Joint State Publisher Plugin -->
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>/joint_states</topic>
+    </plugin>
+
+  </gazebo>
+  
+
+
+
+
+</robot>

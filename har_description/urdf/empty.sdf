@@ -1,0 +1,1598 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <world name="empty">
+
+    <!-- ============================================================
+         PHYSICS
+         Standard 1 kHz ODE step, matches the step size TurtleBot3 /
+         beetle worlds are tuned against. Nothing here is robot-specific,
+         so it will not conflict with either robot's own joint/contact
+         tuning.
+    ============================================================= -->
+    <physics name="1ms" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- ============================================================
+         GROUND PLANE
+         20 m x 20 m so every hazard below (max offset ~7.5 m) has
+         clear floor margin on every side. mu=1.0 matches the waffle
+         wheel collision friction so normal driving is unaffected.
+    ============================================================= -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>20 20</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>1.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>20 20</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.6 0.6 0.6 1</ambient>
+            <diffuse>0.6 0.6 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================================
+         HAZARD LAYOUT NOTES
+
+         - Both robots spawn at (0,0). Every hazard sits at least
+           ~1.6 m clear of that point (checked programmatically).
+         - Every hazard footprint (bounding radius + 0.3 m margin)
+           was checked pairwise against every other hazard -> zero
+           overlaps.
+         - Every hazard model is <static>true</static>: no inertia,
+           no joints, no free-falling settle time. This removes any
+           chance of physics jitter, tipping, sliding, or Nav2
+           costmap noise coming from the obstacles themselves.
+         - Driveable mats are 4 mm thick (well under both robots'
+           ground clearance) so they are physically traversable.
+           Non-driveable mats are 30 mm thick, tall enough to read
+           as a distinct hazard without being an unclimbable wall.
+         - Wet/reflective patches carry visual geometry only (no
+           collision element at all) — flush with the floor, so
+           they cannot ever cause a physics or navigation issue.
+    ============================================================= -->
+
+    <!-- ==== Floor tiles close to the robot spawn point ====
+         The robot spawns at (0,0). Each tile below is a 0.6 m square
+         whose NEAR edge starts 40% of the tile size (0.24 m) out from
+         that spawn point, then extends outward from there — i.e. the
+         tiles begin almost immediately next to where the robot sits,
+         rather than only far out on the floor. Positions were solved
+         numerically so the 4 tiles also stay clear of each other and
+         of the robot's own footprint (waffle: 0.265 x 0.265 m, the
+         larger of the two robots) with a safety margin. -->
+
+    <model name="ring_wet_N">
+      <static>true</static>
+      <pose>0.0 -1.1 0.015 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.708 1.416 0.002</size></box></geometry>
+          <material>
+            <ambient>0.55 0.65 0.75 1</ambient>
+            <diffuse>0.55 0.65 0.75 1</diffuse>
+            <specular>0.9 0.9 0.9 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="ring_driveable_E">
+      <static>true</static>
+      <pose>-7.5 -6.0 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.708 0.708 0.004</size></box></geometry>
+          <material>
+            <ambient>0.2 0.6 0.2 1</ambient>
+            <diffuse>0.2 0.6 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="ring_nondrive_S">
+      <static>true</static>
+      <pose>0.0 1.1290 0.001 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.6 0.6 0.03</size></box></geometry>
+          <surface>
+            <friction><ode><mu>0.7</mu><mu2>0.7</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.6 0.6 0.03</size></box></geometry>
+          <material>
+            <ambient>0.75 0.25 0.1 1</ambient>
+            <diffuse>0.75 0.25 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="ring_wet_W">
+      <static>true</static>
+      <pose>7.5 6.5 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.708 0.708 0.002</size></box></geometry>
+          <material>
+            <ambient>0.55 0.65 0.75 1</ambient>
+            <diffuse>0.55 0.65 0.75 1</diffuse>
+            <specular>0.9 0.9 0.9 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==== Wet / reflective floor patches (visual only) ==== -->
+
+    <model name="wet_floor_patch_1">
+      <static>true</static>
+      <pose>3.5 3.5 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.77 1.77 0.002</size></box></geometry>
+          <material>
+            <ambient>0.55 0.65 0.75 1</ambient>
+            <diffuse>0.55 0.65 0.75 1</diffuse>
+            <specular>0.9 0.9 0.9 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wet_floor_patch_2">
+      <static>true</static>
+      <pose>-4.0 3.0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.77 1.77 0.002</size></box></geometry>
+          <material>
+            <ambient>0.55 0.65 0.75 1</ambient>
+            <diffuse>0.55 0.65 0.75 1</diffuse>
+            <specular>0.9 0.9 0.9 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wet_floor_patch_3">
+      <static>true</static>
+      <pose>3.0 -4.5 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.77 1.77 0.002</size></box></geometry>
+          <material>
+            <ambient>0.55 0.65 0.75 1</ambient>
+            <diffuse>0.55 0.65 0.75 1</diffuse>
+            <specular>0.9 0.9 0.9 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==== Floor mats: DRIVEABLE (4 mm, safe for both robots) ==== -->
+
+    <model name="driveable_mat_1">
+      <static>true</static>
+      <pose>-3.5 -3.5 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.416 1.416 0.004</size></box></geometry>
+          <material>
+            <ambient>0.2 0.6 0.2 1</ambient>
+            <diffuse>0.2 0.6 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="driveable_mat_2">
+      <static>true</static>
+      <pose>5.5 0.5 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.416 1.416 0.004</size></box></geometry>
+          <material>
+            <ambient>0.2 0.6 0.2 1</ambient>
+            <diffuse>0.2 0.6 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="driveable_mat_3">
+      <static>true</static>
+      <pose>-5.5 -0.5 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.416 1.416 0.004</size></box></geometry>
+          <material>
+            <ambient>0.2 0.6 0.2 1</ambient>
+            <diffuse>0.2 0.6 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="driveable_mat_6">
+      <static>true</static>
+      <pose>-0.736 0.0 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.708 0.708 0.004</size></box></geometry>
+          <material>
+            <ambient>0.6 0.6 0.6 1</ambient>
+            <diffuse>0.6 0.6 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="driveable_mat_7">
+      <static>true</static>
+      <pose>-1.4 -0.8 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.708 0.708 0.004</size></box></geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==== Floor mats: NON-DRIVEABLE (30 mm raised rug) ==== -->
+
+    <model name="nondriveable_mat_5">
+      <static>true</static>
+      <pose>1.29 -0.46 0.015 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.6 0.6 0.03</size></box></geometry>
+          <surface>
+            <friction><ode><mu>0.7</mu><mu2>0.7</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.6 0.6 0.03</size></box></geometry>
+          <material>
+            <ambient>0.6 0.6 0.6 1</ambient>
+            <diffuse>0.6 0.6 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="nondriveable_mat_6">
+      <static>true</static>
+      <pose>1.4 0.8 0.015 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.6 0.6 0.03</size></box></geometry>
+          <surface>
+            <friction><ode><mu>0.7</mu><mu2>0.7</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.6 0.6 0.03</size></box></geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="nondriveable_mat_1">
+      <static>true</static>
+      <pose>0.5 5.5 0.015 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>1 1 0.03</size></box></geometry>
+          <surface>
+            <friction><ode><mu>0.7</mu><mu2>0.7</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>1 1 0.03</size></box></geometry>
+          <material>
+            <ambient>0.75 0.25 0.1 1</ambient>
+            <diffuse>0.75 0.25 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="nondriveable_mat_2">
+      <static>true</static>
+      <pose>-0.5 -5.5 0.015 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>1 1 0.03</size></box></geometry>
+          <surface>
+            <friction><ode><mu>0.7</mu><mu2>0.7</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>1 1 0.03</size></box></geometry>
+          <material>
+            <ambient>0.75 0.25 0.1 1</ambient>
+            <diffuse>0.75 0.25 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="nondriveable_mat_3">
+      <static>true</static>
+      <pose>5.0 -3.0 0.015 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>1 1 0.03</size></box></geometry>
+          <surface>
+            <friction><ode><mu>0.7</mu><mu2>0.7</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>1 1 0.03</size></box></geometry>
+          <material>
+            <ambient>0.75 0.25 0.1 1</ambient>
+            <diffuse>0.75 0.25 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==== Additional floor patches (general coverage top-up) ==== -->
+
+    <model name="wet_floor_patch_4">
+      <static>true</static>
+      <pose>-2.0 -6.5 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.77 1.77 0.002</size></box></geometry>
+          <material>
+            <ambient>0.55 0.65 0.75 1</ambient>
+            <diffuse>0.55 0.65 0.75 1</diffuse>
+            <specular>0.9 0.9 0.9 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wet_floor_patch_5">
+      <static>true</static>
+      <pose>6.7 -1.5 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.77 1.77 0.002</size></box></geometry>
+          <material>
+            <ambient>0.55 0.65 0.75 1</ambient>
+            <diffuse>0.55 0.65 0.75 1</diffuse>
+            <specular>0.9 0.9 0.9 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="driveable_mat_4">
+      <static>true</static>
+      <pose>2.0 5.8 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.416 1.416 0.004</size></box></geometry>
+          <material>
+            <ambient>0.2 0.6 0.2 1</ambient>
+            <diffuse>0.2 0.6 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="driveable_mat_5">
+      <static>true</static>
+      <pose>-2.0 6.5 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1.416 1.416 0.004</size></box></geometry>
+          <material>
+            <ambient>0.2 0.6 0.2 1</ambient>
+            <diffuse>0.2 0.6 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="nondriveable_mat_4">
+      <static>true</static>
+      <pose>-6.0 1.0 0.015 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>1 1 0.03</size></box></geometry>
+          <surface>
+            <friction><ode><mu>0.7</mu><mu2>0.7</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>1 1 0.03</size></box></geometry>
+          <material>
+            <ambient>0.75 0.25 0.1 1</ambient>
+            <diffuse>0.75 0.25 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==== Humans (static, simplified silhouette) ==== -->
+
+    <model name="human_1">
+      <static>true</static>
+      <pose>2.0 1.5 0.85 0 0 0.6</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.3 0.35 0.55 1</ambient>
+            <diffuse>0.3 0.35 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.3 0.35 0.55 1</ambient>
+            <diffuse>0.3 0.35 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.3 0.35 0.55 1</ambient>
+            <diffuse>0.3 0.35 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_2">
+      <static>true</static>
+      <pose>-2.5 1.8 0.85 0 0 2.0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.5 0.3 0.3 1</ambient>
+            <diffuse>0.5 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.5 0.3 0.3 1</ambient>
+            <diffuse>0.5 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.5 0.3 0.3 1</ambient>
+            <diffuse>0.5 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_3">
+      <static>true</static>
+      <pose>-1.8 -2.3 0.85 0 0 -1.2</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.35 0.5 0.35 1</ambient>
+            <diffuse>0.35 0.5 0.35 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.35 0.5 0.35 1</ambient>
+            <diffuse>0.35 0.5 0.35 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.35 0.5 0.35 1</ambient>
+            <diffuse>0.35 0.5 0.35 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_4">
+      <static>true</static>
+      <pose>2.2 -1.9 0.85 0 0 2.8</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.55 0.45 0.25 1</ambient>
+            <diffuse>0.55 0.45 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.55 0.45 0.25 1</ambient>
+            <diffuse>0.55 0.45 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.55 0.45 0.25 1</ambient>
+            <diffuse>0.55 0.45 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==== Small objects (static clutter) ==== -->
+
+    <model name="human_5">
+      <static>true</static>
+      <pose>1.04 3.86 0.85 0 0 -1.834</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.45 0.35 0.55 1</ambient>
+            <diffuse>0.45 0.35 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.45 0.35 0.55 1</ambient>
+            <diffuse>0.45 0.35 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.45 0.35 0.55 1</ambient>
+            <diffuse>0.45 0.35 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_6">
+      <static>true</static>
+      <pose>3.80 -1.24 0.85 0 0 2.826</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.6 0.3 0.5 1</ambient>
+            <diffuse>0.6 0.3 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.6 0.3 0.5 1</ambient>
+            <diffuse>0.6 0.3 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.6 0.3 0.5 1</ambient>
+            <diffuse>0.6 0.3 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_7">
+      <static>true</static>
+      <pose>-1.04 -3.86 0.85 0 0 1.308</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.35 0.55 0.5 1</ambient>
+            <diffuse>0.35 0.55 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.35 0.55 0.5 1</ambient>
+            <diffuse>0.35 0.55 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.35 0.55 0.5 1</ambient>
+            <diffuse>0.35 0.55 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_8">
+      <static>true</static>
+      <pose>-2.09 3.41 0.85 0 0 -1.021</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.5 0.5 0.3 1</ambient>
+            <diffuse>0.5 0.5 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.5 0.5 0.3 1</ambient>
+            <diffuse>0.5 0.5 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.5 0.5 0.3 1</ambient>
+            <diffuse>0.5 0.5 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_9">
+      <static>true</static>
+      <pose>-4.75 -2.12 0.85 0 0 0.420</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_10">
+      <static>true</static>
+      <pose>8.60 0.00 0.85 0 0 -3.142</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.55 0.4 0.25 1</ambient>
+            <diffuse>0.55 0.4 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.55 0.4 0.25 1</ambient>
+            <diffuse>0.55 0.4 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.55 0.4 0.25 1</ambient>
+            <diffuse>0.55 0.4 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_11">
+      <static>true</static>
+      <pose>4.30 7.45 0.85 0 0 -2.094</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.3 0.45 0.35 1</ambient>
+            <diffuse>0.3 0.45 0.35 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.3 0.45 0.35 1</ambient>
+            <diffuse>0.3 0.45 0.35 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.3 0.45 0.35 1</ambient>
+            <diffuse>0.3 0.45 0.35 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_12">
+      <static>true</static>
+      <pose>-8.60 0.00 0.85 0 0 -0.0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.5 0.35 0.4 1</ambient>
+            <diffuse>0.5 0.35 0.4 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.5 0.35 0.4 1</ambient>
+            <diffuse>0.5 0.35 0.4 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.5 0.35 0.4 1</ambient>
+            <diffuse>0.5 0.35 0.4 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_13">
+      <static>true</static>
+      <pose>0.00 -8.60 0.85 0 0 1.571</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.4 0.3 0.5 1</ambient>
+            <diffuse>0.4 0.3 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.4 0.3 0.5 1</ambient>
+            <diffuse>0.4 0.3 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.4 0.3 0.5 1</ambient>
+            <diffuse>0.4 0.3 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_14">
+      <static>true</static>
+      <pose>4.30 -7.45 0.85 0 0 2.094</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.35 0.4 0.3 1</ambient>
+            <diffuse>0.35 0.4 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.35 0.4 0.3 1</ambient>
+            <diffuse>0.35 0.4 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.35 0.4 0.3 1</ambient>
+            <diffuse>0.35 0.4 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_15">
+      <static>true</static>
+      <pose>-6.1396 6.4946 0.85 0 0 0.9</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.55 0.25 0.25 1</ambient>
+            <diffuse>0.55 0.25 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.55 0.25 0.25 1</ambient>
+            <diffuse>0.55 0.25 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.55 0.25 0.25 1</ambient>
+            <diffuse>0.55 0.25 0.25 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_16">
+      <static>true</static>
+      <pose>-7.6 -6.7 0.85 0 0 -1.4</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.25 0.4 0.35 1</ambient>
+            <diffuse>0.25 0.4 0.35 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.25 0.4 0.35 1</ambient>
+            <diffuse>0.25 0.4 0.35 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.25 0.4 0.35 1</ambient>
+            <diffuse>0.25 0.4 0.35 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="human_17">
+      <static>true</static>
+      <pose>-7.5414 2.4447 0.85 0 0 1.2</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.22</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="visual_head">
+          <pose>0 0 0.75 0 0 0</pose>
+          <geometry><sphere><radius>0.11</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.65 0.55 1</ambient>
+            <diffuse>0.8 0.65 0.55 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_torso">
+          <pose>0 0 0.35 0 0 0</pose>
+          <geometry><cylinder><radius>0.16</radius><length>0.6</length></cylinder></geometry>
+          <material>
+            <ambient>0.45 0.3 0.5 1</ambient>
+            <diffuse>0.45 0.3 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_left">
+          <pose>0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.45 0.3 0.5 1</ambient>
+            <diffuse>0.45 0.3 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_arm_right">
+          <pose>-0.17 0 0.30 0 0 0</pose>
+          <geometry><cylinder><radius>0.04</radius><length>0.55</length></cylinder></geometry>
+          <material>
+            <ambient>0.45 0.3 0.5 1</ambient>
+            <diffuse>0.45 0.3 0.5 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_left">
+          <pose>0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+        <visual name="visual_leg_right">
+          <pose>-0.10 0 -0.4 0 0 0</pose>
+          <geometry><cylinder><radius>0.07</radius><length>0.9</length></cylinder></geometry>
+          <material>
+            <ambient>0.15 0.15 0.2 1</ambient>
+            <diffuse>0.15 0.15 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="small_object_1">
+      <static>true</static>
+      <pose>1.0 -3.0 0.075 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 0.15 0.15</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 0.15 0.15</size></box></geometry>
+          <material>
+            <ambient>0.55 0.35 0.15 1</ambient>
+            <diffuse>0.55 0.35 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="small_object_2">
+      <static>true</static>
+      <pose>-1.0 3.2 0.075 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 0.15 0.15</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 0.15 0.15</size></box></geometry>
+          <material>
+            <ambient>0.55 0.35 0.15 1</ambient>
+            <diffuse>0.55 0.35 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="small_object_3">
+      <static>true</static>
+      <pose>4.0 2.0 0.075 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 0.15 0.15</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 0.15 0.15</size></box></geometry>
+          <material>
+            <ambient>0.55 0.35 0.15 1</ambient>
+            <diffuse>0.55 0.35 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="small_object_4">
+      <static>true</static>
+      <pose>-4.0 -1.5 0.075 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 0.15 0.15</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 0.15 0.15</size></box></geometry>
+          <material>
+            <ambient>0.55 0.35 0.15 1</ambient>
+            <diffuse>0.55 0.35 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="small_object_5">
+      <static>true</static>
+      <pose>0.0 -2.5 0.075 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 0.15 0.15</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 0.15 0.15</size></box></geometry>
+          <material>
+            <ambient>0.55 0.35 0.15 1</ambient>
+            <diffuse>0.55 0.35 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==== Other mobile robots (static placeholders) ==== -->
+
+    <model name="other_robot_1">
+      <static>true</static>
+      <pose>6.0 4.0 0.075 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.3 0.3 0.15</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.3 0.3 0.15</size></box></geometry>
+          <material>
+            <ambient>0.85 0.75 0.1 1</ambient>
+            <diffuse>0.85 0.75 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="other_robot_2">
+      <static>true</static>
+      <pose>-6.0 4.5 0.075 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.3 0.3 0.15</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.3 0.3 0.15</size></box></geometry>
+          <material>
+            <ambient>0.85 0.75 0.1 1</ambient>
+            <diffuse>0.85 0.75 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

@@ -1,0 +1,9 @@
+{
+    "blur_slider": 3,
+    "actual_blur_kernel": 7,
+    "canny_min": 165,
+    "canny_max": 56,
+    "glare_cutoff": 119,
+    "glare_dilate": 0,
+    "saved_at": "2026-09-25 12:40:21"
+}
